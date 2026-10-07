@@ -62,7 +62,8 @@ export default function Gift() {
         }),
       { threshold: 0.02 }
     );
-    io2.observe($('.paper'));
+    const paperEl = $('.paper');
+    if (paperEl) io2.observe(paperEl);
     cleanups.push(() => io2.disconnect());
 
     /* таймлайн: пункты раскрываются сами, когда доскроллила */
@@ -81,11 +82,13 @@ export default function Gift() {
     cleanups.push(() => tio.disconnect());
 
     const watch = (sel, th, fn) => {
+      const el = $(sel);
+      if (!el) return;
       const o = new IntersectionObserver(
         (es) => { if (es[0].isIntersecting) { o.disconnect(); fn(); } },
         { threshold: th }
       );
-      o.observe($(sel));
+      o.observe(el);
       cleanups.push(() => o.disconnect());
     };
     const seq = (a) => a.forEach(([t, f]) => timers.push(setTimeout(f, t)));
@@ -105,10 +108,12 @@ export default function Gift() {
     /* свечение за курсором */
     if (window.matchMedia('(hover:hover)').matches) {
       const g = glowRef.current;
-      g.style.opacity = 1;
-      const onMove = (e) => { g.style.transform = `translate(${e.clientX}px,${e.clientY}px)`; };
-      window.addEventListener('pointermove', onMove);
-      cleanups.push(() => window.removeEventListener('pointermove', onMove));
+      if (g) {
+        g.style.opacity = 1;
+        const onMove = (e) => { g.style.transform = `translate(${e.clientX}px,${e.clientY}px)`; };
+        window.addEventListener('pointermove', onMove);
+        cleanups.push(() => window.removeEventListener('pointermove', onMove));
+      }
     }
 
     /* главный момент */
@@ -125,16 +130,19 @@ export default function Gift() {
 
     /* финал: салют идёт только пока на экране финал */
     let finaleStarted = false;
-    const fo = new IntersectionObserver(
-      (es) => {
-        const on = es[0].isIntersecting;
-        B.classList.toggle('finale', on);
-        fx.fireworks(on && finaleStarted);
-      },
-      { threshold: 0.35 }
-    );
-    fo.observe($('#finale'));
-    cleanups.push(() => { fo.disconnect(); B.classList.remove('finale'); });
+    const finEl = $('#finale');
+    if (finEl) {
+      const fo = new IntersectionObserver(
+        (es) => {
+          const on = es[0].isIntersecting;
+          B.classList.toggle('finale', on);
+          if (fxRef.current) fxRef.current.fireworks(on && finaleStarted);
+        },
+        { threshold: 0.35 }
+      );
+      fo.observe(finEl);
+      cleanups.push(() => { fo.disconnect(); B.classList.remove('finale'); });
+    }
 
     watch('#finale', 0.35, () =>
       seq([
@@ -182,12 +190,16 @@ export default function Gift() {
 
   const onOpen = () => {
     setVeilOn(true);
-    setTimeout(() => document.getElementById('about').scrollIntoView({ behavior: 'instant' }), 850);
+    setTimeout(() => {
+      const el = document.getElementById('about');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }, 850);
     setTimeout(() => setVeilOn(false), 1000);
   };
 
   const onMusic = () => {
     const au = auRef.current;
+    if (!au) return;
     if (au.paused) {
       au.play().then(() => setPlaying(true)).catch(() => showToast('Добавь файл music/our-song.mp3'));
     } else {
@@ -198,14 +210,17 @@ export default function Gift() {
 
   const onEgg = () => {
     const b = eggRef.current;
+    if (!b) return;
     b.classList.remove('tap');
     void b.offsetWidth;
     b.classList.add('tap');
     if (++eggClicks.current >= 5) {
       eggClicks.current = 0;
       setPsOn(true);
-      fxRef.current.setMode(1);
-      fxRef.current.burst(60);
+      if (fxRef.current) {
+        fxRef.current.setMode(1);
+        fxRef.current.burst(60);
+      }
     }
   };
 
