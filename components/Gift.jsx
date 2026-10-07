@@ -20,6 +20,7 @@ export default function Gift() {
   const eggRef = useRef(null);
   const eggClicks = useRef(0);
   const toastTimer = useRef(null);
+  const userPaused = useRef(false); // true, если Саша сама поставила музыку на паузу
 
   const [veilOn, setVeilOn] = useState(false);
   const [shown, setShown] = useState({});
@@ -152,27 +153,36 @@ export default function Gift() {
       ])
     );
 
-    /* музыка: пробуем сразу, иначе — при первом касании */
+    /* ===== МУЗЫКА: автозапуск ===== */
     const au = new Audio(CONTENT.music);
     au.loop = true;
     au.preload = 'auto';
     auRef.current = au;
 
-    const startMusic = () => {
-      if (au.paused) au.play().then(() => setPlaying(true)).catch(() => {});
-    };
-    startMusic();
+    // состояние кнопки синхронизируется с реальным состоянием плеера
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    au.addEventListener('play', onPlay);
+    au.addEventListener('pause', onPause);
 
-    const evts = ['click', 'touchend', 'keydown'];
-    const onFirst = (e) => {
-      evts.forEach((n) => window.removeEventListener(n, onFirst));
+    const tryPlay = () => au.play().then(() => true).catch(() => false);
+
+    // 1) пробуем сразу при загрузке (сработает, только если браузер разрешит)
+    tryPlay();
+
+    // 2) иначе — при первом же касании/клике (браузеры разрешают звук только после жеста)
+    const evts = ['pointerdown', 'click', 'touchend', 'keydown'];
+    const onFirst = async (e) => {
+      if (userPaused.current) return;
       if (e.target.closest && e.target.closest('#music')) return; // кнопку музыки обработает она сама
-      startMusic();
+      if (await tryPlay()) evts.forEach((n) => window.removeEventListener(n, onFirst));
     };
     evts.forEach((n) => window.addEventListener(n, onFirst));
 
     cleanups.push(() => {
       evts.forEach((n) => window.removeEventListener(n, onFirst));
+      au.removeEventListener('play', onPlay);
+      au.removeEventListener('pause', onPause);
       au.pause();
     });
 
@@ -188,7 +198,10 @@ export default function Gift() {
     toastTimer.current = setTimeout(() => setToast((t) => ({ ...t, on: false })), 3200);
   };
 
+  /* кнопка «Открыть мой подарок» — это жест пользователя, поэтому тут звук точно разрешён */
   const onOpen = () => {
+    const au = auRef.current;
+    if (au && au.paused && !userPaused.current) au.play().catch(() => {});
     setVeilOn(true);
     setTimeout(() => {
       const el = document.getElementById('about');
@@ -201,10 +214,11 @@ export default function Gift() {
     const au = auRef.current;
     if (!au) return;
     if (au.paused) {
-      au.play().then(() => setPlaying(true)).catch(() => showToast('Добавь файл music/our-song.mp3'));
+      userPaused.current = false;
+      au.play().catch(() => showToast('Добавь файл music/our-song.mp3'));
     } else {
+      userPaused.current = true;
       au.pause();
-      setPlaying(false);
     }
   };
 
